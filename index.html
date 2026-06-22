@@ -129,22 +129,15 @@ const grid=document.getElementById("grid");
 function layout(){
   const W=grid.clientWidth, H=grid.clientHeight, N=list.length;
   if(!N||!W||!H) return;
-  let best=1,bestScore=-1;
-  for(let cols=1;cols<=N;cols++){
-    const rows=Math.ceil(N/cols), tw=W/cols, th=H/rows;
-    const aspect=tw/th;                                   // target tiles ~1.3 wide
-    const aspScore=1-Math.min(Math.abs(aspect-1.3),2)/2;
-    const filled=N/(rows*cols);
-    const score=tw*th*(0.45+0.55*aspScore)*(0.7+0.3*filled);
-    if(score>bestScore){bestScore=score;best=cols;}
-  }
+  // pick the column count that yields the LARGEST readable font (max eyesight help),
+  // bounded by tile height (3 stacked lines) and tile width (widest line, no wrap).
+  const fontFor=(cols)=>{ const rows=Math.ceil(N/cols), tw=W/cols, th=H/rows; return Math.min((th-4)/3.0, tw/4.7); };
+  let best=1,bestFs=-1;
+  for(let cols=1;cols<=N;cols++){ const fs=fontFor(cols); if(fs>bestFs){bestFs=fs;best=cols;} }
   const cols=best, rows=Math.ceil(N/cols);
   grid.style.gridTemplateColumns=`repeat(${cols},1fr)`;
   grid.style.gridTemplateRows=`repeat(${rows},1fr)`;
-  const tw=W/cols, th=H/rows;
-  // fit 3 stacked lines vertically AND keep the widest number (e.g. crypto) inside the tile
-  const fs=Math.min((th-6)/3.4, tw/6.2, 28);
-  document.documentElement.style.setProperty('--fs', Math.max(9,fs)+'px');
+  document.documentElement.style.setProperty('--fs', Math.max(10,Math.min(bestFs,44))+'px');
 }
 
 /* ---- render ---- */
@@ -171,8 +164,11 @@ function paint(uid,flash){
   const t=state[uid]; if(!t) return;
   const cell=document.getElementById("c_"+uid); if(!cell) return;
   cell.style.background=colorFor(t.pct);
-  document.getElementById("p_"+uid).textContent = t.price>0?fmtP(t.price):"--";
-  document.getElementById("m_"+uid).textContent = t.price>0?fmtM(t.price-t.prev):"";
+  const big=t.price>=1000, mv=t.price-t.prev;
+  const price=big?"$"+Math.round(t.price).toLocaleString("en-US"):fmtP(t.price);
+  const move=big?(mv>=0?"+":"-")+"$"+Math.round(Math.abs(mv)).toLocaleString("en-US"):fmtM(mv);
+  document.getElementById("p_"+uid).textContent = t.price>0?price:"--";
+  document.getElementById("m_"+uid).textContent = t.price>0?move:"";
   document.getElementById("pc_"+uid).textContent= t.price>0?fmtC(t.pct):"";
   if(flash){ cell.classList.remove("flash"); void cell.offsetWidth; cell.classList.add("flash"); }
 }
