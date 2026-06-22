@@ -26,10 +26,11 @@
 
   .editbar{flex:0 0 auto;display:none;align-items:center;gap:8px;flex-wrap:wrap;position:relative;
     background:#181a1f;border-top:1px solid #2a2d34;padding:8px 12px;z-index:30;}
-  body.editing .editbar{display:flex;}
+  /* in edit mode the toolbar floats to the TOP so the iPhone keyboard never covers the input/suggestions */
+  body.editing .editbar{display:flex;position:fixed;top:0;left:0;right:0;z-index:50;border-top:none;border-bottom:1px solid #2a2d34;}
   .addwrap{position:relative;}
-  .editbar input{background:#0e1014;color:#fff;border:1px solid #333;border-radius:5px;padding:8px 10px;font-size:14px;width:210px;}
-  .suggest{position:absolute;bottom:100%;left:0;width:300px;max-height:280px;overflow:auto;background:#0e1014;border:1px solid #333;border-radius:6px;margin-bottom:4px;display:none;z-index:40;box-shadow:0 -8px 24px rgba(0,0,0,.5);}
+  .editbar input{background:#0e1014;color:#fff;border:1px solid #333;border-radius:5px;padding:8px 10px;font-size:16px;width:210px;}
+  .suggest{position:absolute;top:100%;left:0;width:300px;max-width:80vw;max-height:300px;overflow:auto;background:#0e1014;border:1px solid #333;border-radius:6px;margin-top:4px;display:none;z-index:60;box-shadow:0 8px 24px rgba(0,0,0,.55);}
   .suggest.show{display:block;}
   .sg{display:flex;justify-content:space-between;gap:10px;padding:9px 11px;cursor:pointer;border-bottom:1px solid #20242b;}
   .sg:hover{background:#1b1f26;} .sg .s{color:#fff;font-weight:700;font-size:13px;} .sg .d{color:#8b929c;font-size:11px;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:180px;}
@@ -46,7 +47,7 @@
   .cell .chg{font-size:calc(var(--fs)*0.58);font-variant-numeric:tabular-nums;opacity:.92;display:flex;gap:5px;flex-wrap:nowrap;justify-content:center;line-height:1.05;}
   .cell .mv{font-weight:600;}
   .cell.flash{animation:fl .5s ease;} @keyframes fl{0%{filter:brightness(1.18);}100%{filter:brightness(1);}}
-  body.editing .cell{cursor:grab;}
+  body.editing .cell{cursor:grab;touch-action:none;}  /* lets touch drag fire on iPhone instead of scrolling */
   .cell.dragging{opacity:.5;outline:3px solid #7B4ADB;outline-offset:-3px;}
 
   .del{position:absolute;display:none;top:4px;right:4px;width:24px;height:24px;border-radius:50%;
@@ -74,6 +75,7 @@
     <span class="brand"><span class="mark">$</span>Tickers</span>
     <div class="r">
       <span id="clock">--:--:--</span>
+      <button class="ebtn" onclick="location.href=location.pathname+'?t='+Date.now()" title="Refresh">↻</button>
       <button class="ebtn" id="editBtn" onclick="toggleEdit()">✎ Edit</button>
     </div>
   </div>
