@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<title>Beitou Board · Live Heat Map</title>
+<style>
+  :root{ --line:#0c0c0c; --ink:#181818; --bg:#0c0c0c; --fs:18px; }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;height:100%;background:var(--bg);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif;}
+  body{display:flex;flex-direction:column;height:100vh;overflow:hidden;}
+
+  .bar{flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;
+    background:#111;color:#cfd4da;font-size:12px;letter-spacing:.04em;padding:6px 12px;font-variant-numeric:tabular-nums;}
+  .bar .l{display:flex;align-items:center;gap:9px;}
+  .brand{display:flex;align-items:center;gap:7px;font-weight:700;color:#fff;letter-spacing:.12em;font-size:11px;text-transform:uppercase;}
+  .brand .bee{width:18px;height:18px;background:#7B4ADB;display:flex;align-items:center;justify-content:center;font-size:11px;border-radius:3px;}
+  .dot{width:8px;height:8px;border-radius:50%;background:#888;}
+  .dot.live{background:#27c93f;box-shadow:0 0 6px #27c93f;}
+  .dot.closed{background:#e0823c;}
+  .bar .r{display:flex;align-items:center;gap:12px;color:#8b929c;}
+  .ebtn{background:#23262d;color:#cfd4da;border:1px solid #333;border-radius:5px;padding:5px 11px;font-size:11px;cursor:pointer;letter-spacing:.06em;text-transform:uppercase;font-weight:600;}
+  .ebtn:active{background:#2c3038;} .ebtn.on{background:#7B4ADB;color:#fff;border-color:#7B4ADB;}
+
+  .editbar{flex:0 0 auto;display:none;align-items:center;gap:8px;flex-wrap:wrap;position:relative;
+    background:#181a1f;border-top:1px solid #2a2d34;padding:8px 12px;z-index:30;}
+  body.editing .editbar{display:flex;}
+  .addwrap{position:relative;}
+  .editbar input{background:#0e1014;color:#fff;border:1px solid #333;border-radius:5px;padding:8px 10px;font-size:14px;width:210px;}
+  .suggest{position:absolute;top:100%;left:0;width:300px;max-height:280px;overflow:auto;background:#0e1014;border:1px solid #333;border-radius:6px;margin-top:4px;display:none;z-index:40;box-shadow:0 8px 24px rgba(0,0,0,.5);}
+  .suggest.show{display:block;}
+  .sg{display:flex;justify-content:space-between;gap:10px;padding:9px 11px;cursor:pointer;border-bottom:1px solid #20242b;}
+  .sg:hover{background:#1b1f26;} .sg .s{color:#fff;font-weight:700;font-size:13px;} .sg .d{color:#8b929c;font-size:11px;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:180px;}
+  .hint{color:#6a7079;font-size:11px;} .sp{flex:1;}
+
+  .grid{flex:1 1 auto;display:grid;gap:2px;background:var(--line);min-height:0;}
+  .cell{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    background:#c6ccd1;color:var(--ink);padding:4px;min-height:0;min-width:0;overflow:hidden;
+    text-decoration:none;cursor:pointer;transition:background-color .35s ease;}
+  .cell:active{filter:brightness(.94);}
+  .cell .sym{font-weight:700;font-size:calc(var(--fs)*0.92);line-height:1.05;text-align:center;}
+  .cell .price{font-weight:600;font-size:var(--fs);line-height:1.2;font-variant-numeric:tabular-nums;}
+  .cell .chg{font-size:calc(var(--fs)*0.6);font-variant-numeric:tabular-nums;opacity:.92;display:flex;gap:6px;flex-wrap:wrap;justify-content:center;line-height:1.15;}
+  .cell .mv{font-weight:600;}
+  .cell.flash{animation:fl .5s ease;} @keyframes fl{0%{filter:brightness(1.18);}100%{filter:brightness(1);}}
+  body.editing .cell{cursor:grab;}
+  .cell.dragging{opacity:.5;outline:3px solid #7B4ADB;outline-offset:-3px;}
+
+  .del{position:absolute;display:none;top:4px;right:4px;width:24px;height:24px;border-radius:50%;
+    background:rgba(20,20,20,.8);color:#fff;align-items:center;justify-content:center;font-size:14px;font-weight:700;cursor:pointer;}
+  body.editing .del{display:flex;}
+</style>
+</head>
+<body>
+  <div class="bar">
+    <div class="l">
+      <span class="brand"><span class="bee">🐝</span>Beitou Board</span>
+      <span class="dot" id="dot"></span><span id="mkt">--</span>
+    </div>
+    <div class="r">
+      <span id="src">--</span><span id="clock">--:--:--</span>
+      <button class="ebtn" id="editBtn" onclick="toggleEdit()">✎ Edit</button>
+    </div>
+  </div>
+
+  <div class="editbar">
+    <div class="addwrap">
+      <input id="addInput" placeholder="Add ticker or company name..." autocomplete="off"
+             oninput="onSearch()" onkeydown="if(event.key==='Enter')addTyped()">
+      <div class="suggest" id="suggest"></div>
+    </div>
+    <button class="ebtn" onclick="addTyped()">+ Add</button>
+    <span class="hint">Drag tiles to reorder · ✕ to remove</span>
+    <span class="sp"></span>
+    <button class="ebtn" onclick="resetList()">Reset</button>
+    <button class="ebtn on" onclick="toggleEdit()">Done</button>
+  </div>
+
+  <div class="grid" id="grid"></div>
+
+<script>
+const FINNHUB_KEY = "d8s9m2hr01qkn75cf0o0d8s9m2hr01qkn75cf0og";
+const MAX_TICKERS = 40;
+
+/* sym = label/ticker shown + used for data & StockTwits; cg = CoinGecko id for crypto */
+const DEFAULT_LIST = [
+  {sym:"SPY"},{sym:"QQQ"},{sym:"DIA"},
+  {sym:"VO"},{sym:"RSP"},{sym:"V"},{sym:"MA"},{sym:"MS"},{sym:"BITB"},
+  {sym:"VGK"},{sym:"IEMG"},{sym:"KWEB"},{sym:"EPI"},
+  {sym:"AAPL"},{sym:"AMZN"},{sym:"CRWD"},{sym:"HOOD"},
+  {sym:"GOOGL"},{sym:"TSLA"},{sym:"META"},{sym:"NVDA"},
+  {sym:"BTC", cg:"bitcoin"},{sym:"ETH", cg:"ethereum"},
+];
+const CG_MAP={BTC:"bitcoin",ETH:"ethereum",SOL:"solana",DOGE:"dogecoin",XRP:"ripple",ADA:"cardano",AVAX:"avalanche-2",LINK:"chainlink",BNB:"binancecoin",MATIC:"matic-network"};
+
+const LS_KEY="beitouBoard.list.v2";
+function loadList(){
+  try{ const j=JSON.parse(localStorage.getItem(LS_KEY)); if(Array.isArray(j)&&j.length) return j; }catch(e){}
+  return DEFAULT_LIST.map(x=>({...x}));
+}
+function saveList(){ try{ localStorage.setItem(LS_KEY, JSON.stringify(list.map(t=>({sym:t.sym,cg:t.cg})))); }catch(e){} }
+
+let UID=0;
+let list = loadList();
+const state={};
+function prep(){
+  list.forEach(t=>{
+    if(!t.uid) t.uid="u"+(UID++);
+    t.dataSym = t.cg ? null : t.sym;
+    if(t.price==null){ t.price=0; t.prev=0; t.pct=0; }
+    state[t.uid]=t;
+  });
+}
+
+/* ---- format + color ---- */
+function fmtP(p){ return "$"+p.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function fmtM(d){ return (d>=0?"+":"-")+"$"+Math.abs(d).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function fmtC(p){ return (p>=0?"+":"")+p.toFixed(2)+"%"; }
+function colorFor(pct){
+  const a=Math.abs(pct);
+  if(a<0.05) return "hsl(210,12%,82%)";
+  const t=Math.min(a/2.0,1);
+  return pct>0 ? `hsl(128,42%,${80-t*20}%)` : `hsl(2,62%,${82-t*22}%)`;
+}
+function stLink(t){ const s=t.cg?(t.sym+".X"):t.sym; return "https://stocktwits.com/symbol/"+encodeURIComponent(s); }
+
+/* ---- responsive layout: fit ALL tiles in the viewport ---- */
+const grid=document.getElementById("grid");
+function layout(){
+  const W=grid.clientWidth, H=grid.clientHeight, N=list.length;
+  if(!N||!W||!H) return;
+  let best=1,bestScore=-1;
+  for(let cols=1;cols<=N;cols++){
+    const rows=Math.ceil(N/cols), tw=W/cols, th=H/rows;
+    const aspect=tw/th;                                   // target tiles ~1.3 wide
+    const aspScore=1-Math.min(Math.abs(aspect-1.3),2)/2;
+    const filled=N/(rows*cols);
+    const score=tw*th*(0.45+0.55*aspScore)*(0.7+0.3*filled);
+    if(score>bestScore){bestScore=score;best=cols;}
+  }
+  const cols=best, rows=Math.ceil(N/cols);
+  grid.style.gridTemplateColumns=`repeat(${cols},1fr)`;
+  grid.style.gridTemplateRows=`repeat(${rows},1fr)`;
+  const tw=W/cols, th=H/rows, base=Math.min(tw*0.5, th*0.34);
+  document.documentElement.style.setProperty('--fs', Math.max(8,Math.min(base,30))+'px');
+}
+
+/* ---- render ---- */
+function buildCells(){
+  prep();
+  grid.innerHTML="";
+  list.forEach(t=>{
+    const c=document.createElement("a");
+    c.className="cell"; c.id="c_"+t.uid; c.dataset.uid=t.uid;
+    c.href=stLink(t); c.target="_blank"; c.rel="noopener";
+    c.onclick=(e)=>{ if(document.body.classList.contains("editing")) e.preventDefault(); };
+    c.addEventListener("pointerdown",(e)=>onDragStart(e,t.uid));
+    c.innerHTML=`<div class="sym">${t.sym}</div>
+      <div class="price" id="p_${t.uid}"></div>
+      <div class="chg"><span class="mv" id="m_${t.uid}"></span><span id="pc_${t.uid}"></span></div>
+      <div class="del" onclick="event.preventDefault();event.stopPropagation();removeUid('${t.uid}')">✕</div>`;
+    grid.appendChild(c);
+    paint(t.uid,false);
+  });
+  layout();
+  if(drag.uid){ const el=document.getElementById("c_"+drag.uid); if(el) el.classList.add("dragging"); }
+}
+function paint(uid,flash){
+  const t=state[uid]; if(!t) return;
+  const cell=document.getElementById("c_"+uid); if(!cell) return;
+  cell.style.background=colorFor(t.pct);
+  document.getElementById("p_"+uid).textContent = t.price>0?fmtP(t.price):"--";
+  document.getElementById("m_"+uid).textContent = t.price>0?fmtM(t.price-t.prev):"";
+  document.getElementById("pc_"+uid).textContent= t.price>0?fmtC(t.pct):"";
+  if(flash){ cell.classList.remove("flash"); void cell.offsetWidth; cell.classList.add("flash"); }
+}
+
+/* ---- drag & drop reorder (pointer events: mouse + touch) ---- */
+const drag={uid:null};
+function onDragStart(e,uid){
+  if(!document.body.classList.contains("editing")) return;
+  if(e.target.closest(".del")) return;
+  drag.uid=uid; e.preventDefault();
+  const el=document.getElementById("c_"+uid); el.classList.add("dragging");
+}
+document.addEventListener("pointermove",(e)=>{
+  if(!drag.uid) return;
+  const dragEl=document.getElementById("c_"+drag.uid); if(!dragEl) return;
+  dragEl.style.pointerEvents="none";
+  const under=document.elementFromPoint(e.clientX,e.clientY);
+  dragEl.style.pointerEvents="";
+  const cell=under&&under.closest&&under.closest(".cell");
+  if(!cell||cell.dataset.uid===drag.uid) return;
+  const fromIdx=list.findIndex(t=>t.uid===drag.uid);
+  const toIdx=list.findIndex(t=>t.uid===cell.dataset.uid);
+  if(fromIdx<0||toIdx<0) return;
+  const [it]=list.splice(fromIdx,1); list.splice(toIdx,0,it);
+  buildCells();
+});
+function endDrag(){ if(!drag.uid)return; const el=document.getElementById("c_"+drag.uid); if(el)el.classList.remove("dragging"); drag.uid=null; saveList(); }
+document.addEventListener("pointerup",endDrag);
+document.addEventListener("pointercancel",endDrag);
+
+/* ---- edit actions ---- */
+function toggleEdit(){ const on=document.body.classList.toggle("editing"); document.getElementById("editBtn").classList.toggle("on",on); if(!on){hideSuggest();} }
+function removeUid(uid){ list=list.filter(t=>t.uid!==uid); delete state[uid]; saveList(); buildCells(); restartFeeds(); }
+function resetList(){ list=DEFAULT_LIST.map(x=>({...x})); saveList(); buildCells(); restartFeeds(); }
+function addSymbol(sym){
+  sym=(sym||"").trim().toUpperCase().replace(/[^A-Z0-9.\-]/g,""); if(!sym) return;
+  if(list.length>=MAX_TICKERS){ alert("Max "+MAX_TICKERS+" tickers for legibility. Remove one first."); return; }
+  if(list.some(t=>t.sym===sym)) return;
+  list.push( CG_MAP[sym] ? {sym, cg:CG_MAP[sym]} : {sym} );
+  document.getElementById("addInput").value=""; hideSuggest();
+  saveList(); buildCells(); restartFeeds();
+}
+function addTyped(){ addSymbol(document.getElementById("addInput").value); }
+
+/* ---- autocomplete via Finnhub /search ---- */
+let searchTimer=null;
+function onSearch(){
+  clearTimeout(searchTimer);
+  const q=document.getElementById("addInput").value.trim();
+  if(q.length<1||!FINNHUB_KEY){ hideSuggest(); return; }
+  searchTimer=setTimeout(async()=>{
+    try{
+      const r=await fetch(`https://finnhub.io/api/v1/search?q=${encodeURIComponent(q)}&token=${FINNHUB_KEY}`);
+      const d=await r.json();
+      const rows=(d.result||[]).filter(x=>x.symbol&&!x.symbol.includes(".")&&!x.symbol.includes(":")).slice(0,8);
+      const box=document.getElementById("suggest");
+      if(!rows.length){ hideSuggest(); return; }
+      box.innerHTML=rows.map(x=>`<div class="sg" onclick="addSymbol('${x.symbol.replace(/'/g,"")}')"><span class="s">${x.symbol}</span><span class="d">${(x.description||"").replace(/</g,"")}</span></div>`).join("");
+      box.classList.add("show");
+    }catch(e){ hideSuggest(); }
+  },250);
+}
+function hideSuggest(){ const b=document.getElementById("suggest"); b.classList.remove("show"); b.innerHTML=""; }
+document.addEventListener("pointerdown",(e)=>{ if(!e.target.closest(".addwrap")) hideSuggest(); });
+
+/* ---- live data ---- */
+let ws=null;
+async function pollStocks(){
+  if(!FINNHUB_KEY) return;
+  for(const t of list.filter(x=>!x.cg)){
+    try{
+      const r=await fetch(`https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(t.dataSym)}&token=${FINNHUB_KEY}`);
+      const q=await r.json();
+      if(q&&q.c>0){ t.price=q.c; t.prev=q.pc||t.prev||q.c; t.pct=(q.dp!=null)?q.dp:t.pct; paint(t.uid,true); }
+    }catch(e){}
+  }
+}
+function openWS(){
+  if(!FINNHUB_KEY) return;
+  try{
+    if(ws){ try{ws.close();}catch(e){} }
+    ws=new WebSocket(`wss://ws.finnhub.io?token=${FINNHUB_KEY}`);
+    ws.onopen=()=>list.filter(t=>!t.cg).forEach(t=>ws.send(JSON.stringify({type:"subscribe",symbol:t.dataSym})));
+    ws.onmessage=(ev)=>{
+      const m=JSON.parse(ev.data); if(m.type!=="trade"||!m.data) return;
+      const last={}; m.data.forEach(d=>last[d.s]=d.p);
+      Object.keys(last).forEach(s=>{ const t=list.find(x=>x.dataSym===s); if(!t)return; t.price=last[s]; if(t.prev>0)t.pct=(t.price-t.prev)/t.prev*100; paint(t.uid,true); });
+    };
+    ws.onclose=()=>setTimeout(()=>{ if(ws&&ws.readyState===3) openWS(); },5000);
+  }catch(e){}
+}
+async function pollCrypto(){
+  const cs=list.filter(t=>t.cg); if(!cs.length) return;
+  try{
+    const r=await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${cs.map(t=>t.cg).join(",")}&vs_currencies=usd&include_24hr_change=true`);
+    const d=await r.json();
+    cs.forEach(t=>{ const o=d[t.cg]; if(!o)return; t.price=o.usd; t.pct=o.usd_24h_change||0; t.prev=t.pct!==0?t.price/(1+t.pct/100):t.price; paint(t.uid,true); });
+  }catch(e){}
+}
+function restartFeeds(){ pollStocks(); pollCrypto(); openWS(); }
+
+/* ---- status ---- */
+function isMarketOpen(){ const et=new Date(new Date().toLocaleString("en-US",{timeZone:"America/New_York"})); const d=et.getDay(); if(d===0||d===6)return false; const m=et.getHours()*60+et.getMinutes(); return m>=570&&m<960; }
+function tick(){
+  const open=isMarketOpen();
+  document.getElementById("dot").className="dot "+(open?"live":"closed");
+  document.getElementById("mkt").textContent=open?"MARKET OPEN":"MARKET CLOSED";
+  document.getElementById("clock").textContent=new Date().toLocaleTimeString("en-US",{hour12:false});
+  document.getElementById("src").textContent=FINNHUB_KEY?"live · finnhub + coingecko · ":"crypto only · ";
+}
+
+/* ---- boot ---- */
+buildCells(); tick(); setInterval(tick,1000);
+restartFeeds(); setInterval(pollCrypto,20000); setInterval(pollStocks,60000);
+window.addEventListener("resize",layout);
+window.addEventListener("orientationchange",()=>setTimeout(layout,300));
+</script>
+</body>
+</html>
