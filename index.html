@@ -85,7 +85,7 @@ const MAX_TICKERS = 40;
 /* sym = label/ticker shown + used for data & StockTwits; cg = CoinGecko id for crypto */
 const DEFAULT_LIST = [
   {sym:"SPY"},{sym:"QQQ"},{sym:"DIA"},
-  {sym:"VO"},{sym:"RSP"},{sym:"V"},{sym:"MA"},{sym:"MS"},{sym:"BITB"},
+  {sym:"VO"},{sym:"RSP"},{sym:"V"},{sym:"MA"},{sym:"MS"},
   {sym:"VGK"},{sym:"IEMG"},{sym:"KWEB"},{sym:"EPI"},
   {sym:"AAPL"},{sym:"AMZN"},{sym:"CRWD"},{sym:"HOOD"},
   {sym:"GOOGL"},{sym:"TSLA"},{sym:"META"},{sym:"NVDA"},
@@ -93,9 +93,12 @@ const DEFAULT_LIST = [
 ];
 const CG_MAP={BTC:"bitcoin",ETH:"ethereum",SOL:"solana",DOGE:"dogecoin",XRP:"ripple",ADA:"cardano",AVAX:"avalanche-2",LINK:"chainlink",BNB:"binancecoin",MATIC:"matic-network"};
 
+/* KEEP THIS KEY STABLE FOREVER. Changing it resets every device's saved list. */
 const LS_KEY="beitouBoard.list.v2";
+const LS_OLD=["beitouBoard.list.v1"]; // migrate from old keys so updates never wipe a saved list
 function loadList(){
   try{ const j=JSON.parse(localStorage.getItem(LS_KEY)); if(Array.isArray(j)&&j.length) return j; }catch(e){}
+  for(const k of LS_OLD){ try{ const j=JSON.parse(localStorage.getItem(k)); if(Array.isArray(j)&&j.length) return j; }catch(e){} }
   return DEFAULT_LIST.map(x=>({...x}));
 }
 function saveList(){ try{ localStorage.setItem(LS_KEY, JSON.stringify(list.map(t=>({sym:t.sym,cg:t.cg})))); }catch(e){} }
