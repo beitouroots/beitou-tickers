@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
-<title>Beitou Board · Live Heat Map</title>
+<title>Tickers</title>
 <style>
   :root{ --line:#0c0c0c; --ink:#181818; --bg:#0c0c0c; --fs:18px; }
   *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
@@ -14,10 +14,9 @@
   body{display:flex;flex-direction:column;height:100vh;height:100dvh;overflow:hidden;}
 
   .bar{flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;
-    background:#111;color:#cfd4da;font-size:12px;letter-spacing:.04em;padding:6px 12px;font-variant-numeric:tabular-nums;}
-  .bar .l{display:flex;align-items:center;gap:9px;}
-  .brand{display:flex;align-items:center;gap:7px;font-weight:700;color:#fff;letter-spacing:.12em;font-size:11px;text-transform:uppercase;}
-  .brand .bee{width:18px;height:18px;background:#7B4ADB;display:flex;align-items:center;justify-content:center;font-size:11px;border-radius:3px;}
+    background:#111;color:#cfd4da;font-size:11px;letter-spacing:.04em;padding:4px 10px;font-variant-numeric:tabular-nums;border-top:1px solid #222;}
+  .brand{display:flex;align-items:center;gap:6px;font-weight:700;color:#fff;letter-spacing:.1em;font-size:10px;text-transform:uppercase;}
+  .brand .mark{width:16px;height:16px;background:#7B4ADB;color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;border-radius:3px;}
   .dot{width:8px;height:8px;border-radius:50%;background:#888;}
   .dot.live{background:#27c93f;box-shadow:0 0 6px #27c93f;}
   .dot.closed{background:#e0823c;}
@@ -30,7 +29,7 @@
   body.editing .editbar{display:flex;}
   .addwrap{position:relative;}
   .editbar input{background:#0e1014;color:#fff;border:1px solid #333;border-radius:5px;padding:8px 10px;font-size:14px;width:210px;}
-  .suggest{position:absolute;top:100%;left:0;width:300px;max-height:280px;overflow:auto;background:#0e1014;border:1px solid #333;border-radius:6px;margin-top:4px;display:none;z-index:40;box-shadow:0 8px 24px rgba(0,0,0,.5);}
+  .suggest{position:absolute;bottom:100%;left:0;width:300px;max-height:280px;overflow:auto;background:#0e1014;border:1px solid #333;border-radius:6px;margin-bottom:4px;display:none;z-index:40;box-shadow:0 -8px 24px rgba(0,0,0,.5);}
   .suggest.show{display:block;}
   .sg{display:flex;justify-content:space-between;gap:10px;padding:9px 11px;cursor:pointer;border-bottom:1px solid #20242b;}
   .sg:hover{background:#1b1f26;} .sg .s{color:#fff;font-weight:700;font-size:13px;} .sg .d{color:#8b929c;font-size:11px;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:180px;}
@@ -56,16 +55,7 @@
 </style>
 </head>
 <body>
-  <div class="bar">
-    <div class="l">
-      <span class="brand"><span class="bee">🐝</span>Beitou Board</span>
-      <span class="dot" id="dot"></span><span id="mkt">--</span>
-    </div>
-    <div class="r">
-      <span id="src">--</span><span id="clock">--:--:--</span>
-      <button class="ebtn" id="editBtn" onclick="toggleEdit()">✎ Edit</button>
-    </div>
-  </div>
+  <div class="grid" id="grid"></div>
 
   <div class="editbar">
     <div class="addwrap">
@@ -80,7 +70,13 @@
     <button class="ebtn on" onclick="toggleEdit()">Done</button>
   </div>
 
-  <div class="grid" id="grid"></div>
+  <div class="bar">
+    <span class="brand"><span class="mark">$</span>Tickers</span>
+    <div class="r">
+      <span id="clock">--:--:--</span>
+      <button class="ebtn" id="editBtn" onclick="toggleEdit()">✎ Edit</button>
+    </div>
+  </div>
 
 <script>
 const FINNHUB_KEY = "d8s9m2hr01qkn75cf0o0d8s9m2hr01qkn75cf0og";
@@ -158,7 +154,7 @@ function buildCells(){
   list.forEach(t=>{
     const c=document.createElement("a");
     c.className="cell"; c.id="c_"+t.uid; c.dataset.uid=t.uid;
-    c.href=stLink(t); c.target="_blank"; c.rel="noopener";
+    c.href=stLink(t); /* same-tab StockTwits */
     c.onclick=(e)=>{ if(document.body.classList.contains("editing")) e.preventDefault(); };
     c.addEventListener("pointerdown",(e)=>onDragStart(e,t.uid));
     c.innerHTML=`<div class="sym">${t.sym}</div>
@@ -208,7 +204,7 @@ document.addEventListener("pointerup",endDrag);
 document.addEventListener("pointercancel",endDrag);
 
 /* ---- edit actions ---- */
-function toggleEdit(){ const on=document.body.classList.toggle("editing"); document.getElementById("editBtn").classList.toggle("on",on); if(!on){hideSuggest();} }
+function toggleEdit(){ const on=document.body.classList.toggle("editing"); document.getElementById("editBtn").classList.toggle("on",on); if(!on){hideSuggest();} setTimeout(layout,10); }
 function removeUid(uid){ list=list.filter(t=>t.uid!==uid); delete state[uid]; saveList(); buildCells(); restartFeeds(); }
 function resetList(){ list=DEFAULT_LIST.map(x=>({...x})); saveList(); buildCells(); restartFeeds(); }
 function addSymbol(sym){
@@ -281,11 +277,7 @@ function restartFeeds(){ pollStocks(); pollCrypto(); openWS(); }
 /* ---- status ---- */
 function isMarketOpen(){ const et=new Date(new Date().toLocaleString("en-US",{timeZone:"America/New_York"})); const d=et.getDay(); if(d===0||d===6)return false; const m=et.getHours()*60+et.getMinutes(); return m>=570&&m<960; }
 function tick(){
-  const open=isMarketOpen();
-  document.getElementById("dot").className="dot "+(open?"live":"closed");
-  document.getElementById("mkt").textContent=open?"MARKET OPEN":"MARKET CLOSED";
-  document.getElementById("clock").textContent=new Date().toLocaleTimeString("en-US",{hour12:false});
-  document.getElementById("src").textContent=FINNHUB_KEY?"live · finnhub + coingecko · ":"crypto only · ";
+  const c=document.getElementById("clock"); if(c) c.textContent=new Date().toLocaleTimeString("en-US",{hour12:false});
 }
 
 /* ---- boot ---- */
