@@ -240,10 +240,9 @@ function buildList(){
   const el=document.getElementById("editlist"); if(!el) return;
   prep(); el.innerHTML="";
   list.forEach(t=>{
-    const pr = t.price>0 ? (t.price>=1000?"$"+Math.round(t.price).toLocaleString("en-US"):fmtP(t.price)) : "";
     const r=document.createElement("div");
     r.className="row"; r.dataset.uid=t.uid;
-    r.innerHTML=`<span class="grip">&#9776;</span><span class="rsym">${t.sym}</span><span class="rprice">${pr}</span>
+    r.innerHTML=`<span class="grip">&#9776;</span><span class="rsym">${t.sym}</span>
       <span class="rbtns">
         <span class="rb" onclick="event.stopPropagation();move('${t.uid}',-1)">&#9650;</span>
         <span class="rb" onclick="event.stopPropagation();move('${t.uid}',1)">&#9660;</span>
