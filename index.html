@@ -53,10 +53,25 @@
   .del{position:absolute;display:none;top:4px;right:4px;width:24px;height:24px;border-radius:50%;
     background:rgba(20,20,20,.8);color:#fff;align-items:center;justify-content:center;font-size:14px;font-weight:700;cursor:pointer;}
   body.editing .del{display:flex;}
+
+  /* ---- edit mode: vertical reorder list (Schwab-style) ---- */
+  .editlist{display:none;flex:1 1 auto;min-height:0;overflow-y:auto;background:#0b0c0f;padding:54px 10px 14px;}
+  body.editing .editlist{display:block;}
+  body.editing .grid{display:none;}
+  .row{display:flex;align-items:center;gap:12px;background:#191c22;border:1px solid #2a2d34;border-radius:9px;
+    padding:13px 14px;margin:0 auto 8px;max-width:560px;color:#eef2f9;touch-action:none;user-select:none;}
+  .row.dragging{opacity:.55;outline:2px solid #7B4ADB;}
+  .row .grip{font-size:22px;color:#8b929c;line-height:1;cursor:grab;}
+  .row .rsym{font-weight:700;font-size:17px;flex:1;}
+  .row .rprice{color:#9aa1ab;font-size:14px;font-variant-numeric:tabular-nums;}
+  .row .rbtns{display:flex;gap:6px;}
+  .row .rb{width:36px;height:36px;border-radius:8px;background:#23262d;color:#cfd4da;display:flex;align-items:center;justify-content:center;font-size:16px;border:1px solid #333;cursor:pointer;}
+  .row .rb.del{color:#ff6b6b;}
 </style>
 </head>
 <body>
   <div class="grid" id="grid"></div>
+  <div class="editlist" id="editlist"></div>
 
   <div class="editbar">
     <div class="addwrap">
@@ -205,18 +220,58 @@ document.addEventListener("pointerup",endDrag);
 document.addEventListener("pointercancel",endDrag);
 
 /* ---- edit actions ---- */
-function toggleEdit(){ const on=document.body.classList.toggle("editing"); document.getElementById("editBtn").classList.toggle("on",on); if(!on){hideSuggest();} setTimeout(layout,10); }
-function removeUid(uid){ list=list.filter(t=>t.uid!==uid); delete state[uid]; saveList(); buildCells(); restartFeeds(); }
-function resetList(){ list=DEFAULT_LIST.map(x=>({...x})); saveList(); buildCells(); restartFeeds(); }
+function rerender(){ buildCells(); if(document.body.classList.contains("editing")) buildList(); }
+function toggleEdit(){ const on=document.body.classList.toggle("editing"); document.getElementById("editBtn").classList.toggle("on",on); if(on){buildList();} else {hideSuggest();} setTimeout(layout,10); }
+function removeUid(uid){ list=list.filter(t=>t.uid!==uid); delete state[uid]; saveList(); rerender(); restartFeeds(); }
+function resetList(){ list=DEFAULT_LIST.map(x=>({...x})); saveList(); rerender(); restartFeeds(); }
+function move(uid,dir){ const i=list.findIndex(t=>t.uid===uid), j=i+dir; if(i<0||j<0||j>=list.length) return; [list[i],list[j]]=[list[j],list[i]]; saveList(); buildList(); buildCells(); }
 function addSymbol(sym){
   sym=(sym||"").trim().toUpperCase().replace(/[^A-Z0-9.\-]/g,""); if(!sym) return;
   if(list.length>=MAX_TICKERS){ alert("Max "+MAX_TICKERS+" tickers for legibility. Remove one first."); return; }
   if(list.some(t=>t.sym===sym)) return;
   list.push( CG_MAP[sym] ? {sym, cg:CG_MAP[sym]} : {sym} );
   document.getElementById("addInput").value=""; hideSuggest();
-  saveList(); buildCells(); restartFeeds();
+  saveList(); rerender(); restartFeeds();
 }
 function addTyped(){ addSymbol(document.getElementById("addInput").value); }
+
+/* ---- edit-mode vertical reorder list (drag rows or use the arrows) ---- */
+function buildList(){
+  const el=document.getElementById("editlist"); if(!el) return;
+  prep(); el.innerHTML="";
+  list.forEach(t=>{
+    const pr = t.price>0 ? (t.price>=1000?"$"+Math.round(t.price).toLocaleString("en-US"):fmtP(t.price)) : "";
+    const r=document.createElement("div");
+    r.className="row"; r.dataset.uid=t.uid;
+    r.innerHTML=`<span class="grip">&#9776;</span><span class="rsym">${t.sym}</span><span class="rprice">${pr}</span>
+      <span class="rbtns">
+        <span class="rb" onclick="event.stopPropagation();move('${t.uid}',-1)">&#9650;</span>
+        <span class="rb" onclick="event.stopPropagation();move('${t.uid}',1)">&#9660;</span>
+        <span class="rb del" onclick="event.stopPropagation();removeUid('${t.uid}')">&#10005;</span>
+      </span>`;
+    r.addEventListener("pointerdown",(e)=>{ if(e.target.closest(".rb")) return; lDragStart(e,t.uid); });
+    el.appendChild(r);
+  });
+}
+const lrowEl=(uid)=>document.querySelector('.row[data-uid="'+uid+'"]');
+const ldrag={uid:null};
+function lDragStart(e,uid){ ldrag.uid=uid; e.preventDefault(); const r=lrowEl(uid); if(r) r.classList.add("dragging"); }
+document.addEventListener("pointermove",(e)=>{
+  if(!ldrag.uid) return;
+  const r=lrowEl(ldrag.uid); if(!r) return;
+  r.style.pointerEvents="none";
+  const under=document.elementFromPoint(e.clientX,e.clientY);
+  r.style.pointerEvents="";
+  const tgt=under&&under.closest&&under.closest(".row");
+  if(!tgt||tgt.dataset.uid===ldrag.uid) return;
+  const from=list.findIndex(t=>t.uid===ldrag.uid), to=list.findIndex(t=>t.uid===tgt.dataset.uid);
+  if(from<0||to<0) return;
+  const [it]=list.splice(from,1); list.splice(to,0,it); buildList();
+  const nr=lrowEl(ldrag.uid); if(nr) nr.classList.add("dragging");
+});
+function lDragEnd(){ if(!ldrag.uid) return; const r=lrowEl(ldrag.uid); if(r) r.classList.remove("dragging"); ldrag.uid=null; saveList(); buildCells(); }
+document.addEventListener("pointerup",lDragEnd);
+document.addEventListener("pointercancel",lDragEnd);
 
 /* ---- autocomplete via Finnhub /search ---- */
 let searchTimer=null;
