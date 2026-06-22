@@ -11,7 +11,7 @@
   *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
   html,body{margin:0;height:100%;background:var(--bg);
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif;}
-  body{display:flex;flex-direction:column;height:100vh;overflow:hidden;}
+  body{display:flex;flex-direction:column;height:100vh;height:100dvh;overflow:hidden;}
 
   .bar{flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;
     background:#111;color:#cfd4da;font-size:12px;letter-spacing:.04em;padding:6px 12px;font-variant-numeric:tabular-nums;}
@@ -38,12 +38,13 @@
 
   .grid{flex:1 1 auto;display:grid;gap:2px;background:var(--line);min-height:0;}
   .cell{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;
-    background:#c6ccd1;color:var(--ink);padding:4px;min-height:0;min-width:0;overflow:hidden;
+    background:#c6ccd1;color:var(--ink);padding:2px 3px;min-height:0;min-width:0;overflow:hidden;
     text-decoration:none;cursor:pointer;transition:background-color .35s ease;}
   .cell:active{filter:brightness(.94);}
-  .cell .sym{font-weight:700;font-size:calc(var(--fs)*0.92);line-height:1.05;text-align:center;}
-  .cell .price{font-weight:600;font-size:var(--fs);line-height:1.2;font-variant-numeric:tabular-nums;}
-  .cell .chg{font-size:calc(var(--fs)*0.6);font-variant-numeric:tabular-nums;opacity:.92;display:flex;gap:6px;flex-wrap:wrap;justify-content:center;line-height:1.15;}
+  .cell>div{max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center;}
+  .cell .sym{font-weight:700;font-size:calc(var(--fs)*0.9);line-height:1.0;}
+  .cell .price{font-weight:600;font-size:var(--fs);line-height:1.1;font-variant-numeric:tabular-nums;}
+  .cell .chg{font-size:calc(var(--fs)*0.58);font-variant-numeric:tabular-nums;opacity:.92;display:flex;gap:5px;flex-wrap:nowrap;justify-content:center;line-height:1.05;}
   .cell .mv{font-weight:600;}
   .cell.flash{animation:fl .5s ease;} @keyframes fl{0%{filter:brightness(1.18);}100%{filter:brightness(1);}}
   body.editing .cell{cursor:grab;}
@@ -144,8 +145,10 @@ function layout(){
   const cols=best, rows=Math.ceil(N/cols);
   grid.style.gridTemplateColumns=`repeat(${cols},1fr)`;
   grid.style.gridTemplateRows=`repeat(${rows},1fr)`;
-  const tw=W/cols, th=H/rows, base=Math.min(tw*0.5, th*0.34);
-  document.documentElement.style.setProperty('--fs', Math.max(8,Math.min(base,30))+'px');
+  const tw=W/cols, th=H/rows;
+  // fit 3 stacked lines vertically AND keep the widest number (e.g. crypto) inside the tile
+  const fs=Math.min((th-6)/3.4, tw/6.2, 28);
+  document.documentElement.style.setProperty('--fs', Math.max(9,fs)+'px');
 }
 
 /* ---- render ---- */
@@ -290,6 +293,8 @@ buildCells(); tick(); setInterval(tick,1000);
 restartFeeds(); setInterval(pollCrypto,20000); setInterval(pollStocks,60000);
 window.addEventListener("resize",layout);
 window.addEventListener("orientationchange",()=>setTimeout(layout,300));
+window.addEventListener("load",()=>{ layout(); setTimeout(layout,250); });
+setTimeout(layout,150); setTimeout(layout,700);
 </script>
 </body>
 </html>
