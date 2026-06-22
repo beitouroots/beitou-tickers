@@ -58,14 +58,14 @@
   .editlist{display:none;flex:1 1 auto;min-height:0;overflow-y:auto;background:#0b0c0f;padding:54px 10px 14px;}
   body.editing .editlist{display:block;}
   body.editing .grid{display:none;}
-  .row{display:flex;align-items:center;gap:12px;background:#191c22;border:1px solid #2a2d34;border-radius:9px;
-    padding:13px 14px;margin:0 auto 8px;max-width:560px;color:#eef2f9;touch-action:none;user-select:none;}
+  .row{display:flex;align-items:center;gap:8px;background:#191c22;border:1px solid #2a2d34;border-radius:9px;
+    padding:7px 9px;margin:0 auto 6px;max-width:560px;color:#eef2f9;user-select:none;}
   .row.dragging{opacity:.55;outline:2px solid #7B4ADB;}
-  .row .grip{font-size:22px;color:#8b929c;line-height:1;cursor:grab;}
-  .row .rsym{font-weight:700;font-size:17px;flex:1;}
-  .row .rprice{color:#9aa1ab;font-size:14px;font-variant-numeric:tabular-nums;}
-  .row .rbtns{display:flex;gap:6px;}
-  .row .rb{width:36px;height:36px;border-radius:8px;background:#23262d;color:#cfd4da;display:flex;align-items:center;justify-content:center;font-size:16px;border:1px solid #333;cursor:pointer;}
+  .row .grip{font-size:22px;color:#8b929c;line-height:1;cursor:grab;touch-action:none;padding:6px 4px;flex:none;} /* ONLY the grip drags; rest of row scrolls */
+  .row .rsym{font-weight:700;font-size:16px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .row .rprice{color:#9aa1ab;font-size:13px;font-variant-numeric:tabular-nums;flex:none;}
+  .row .rbtns{display:flex;gap:5px;flex:none;}
+  .row .rb{width:32px;height:32px;border-radius:7px;background:#23262d;color:#cfd4da;display:flex;align-items:center;justify-content:center;font-size:15px;border:1px solid #333;cursor:pointer;flex:none;}
   .row .rb.del{color:#ff6b6b;}
 </style>
 </head>
@@ -249,7 +249,7 @@ function buildList(){
         <span class="rb" onclick="event.stopPropagation();move('${t.uid}',1)">&#9660;</span>
         <span class="rb del" onclick="event.stopPropagation();removeUid('${t.uid}')">&#10005;</span>
       </span>`;
-    r.addEventListener("pointerdown",(e)=>{ if(e.target.closest(".rb")) return; lDragStart(e,t.uid); });
+    r.addEventListener("pointerdown",(e)=>{ if(!e.target.closest(".grip")) return; lDragStart(e,t.uid); });
     el.appendChild(r);
   });
 }
