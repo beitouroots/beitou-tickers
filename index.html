@@ -84,6 +84,25 @@
   .cbox .cbtn{flex:1;padding:12px 0;border-radius:9px;font-size:15px;font-weight:700;border:1px solid #333;cursor:pointer;}
   .cbox .cbtn.cancel{background:#23262d;color:#cfd4da;}
   .cbox .cbtn.ok{background:#c0392b;color:#fff;border-color:#c0392b;}
+
+  /* ---- keep-awake video fallback (older iPads, pre-iPadOS 16.4) ---- */
+  #nosleep{position:fixed;width:2px;height:2px;opacity:.01;pointer-events:none;left:-1px;top:-1px;z-index:-1;}
+
+  /* ---- Wall Mode setup card (one-time) ---- */
+  .wm{position:fixed;inset:0;background:rgba(0,0,0,.82);display:none;align-items:center;justify-content:center;z-index:10000;padding:18px;}
+  .wm.show{display:flex;}
+  .wmbox{background:#15181d;border:1px solid #2f333b;border-radius:16px;padding:22px 20px 18px;width:min(92vw,360px);box-shadow:0 16px 50px rgba(0,0,0,.6);}
+  .wmbox h2{margin:0 0 4px;color:#fff;font-size:19px;font-weight:800;letter-spacing:.01em;display:flex;align-items:center;gap:9px;}
+  .wmbox h2 .mk{width:22px;height:22px;background:#7B4ADB;color:#fff;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;}
+  .wmbox p.sub{margin:0 0 16px;color:#8b929c;font-size:13px;line-height:1.4;}
+  .wmbox ol{margin:0 0 18px;padding:0;list-style:none;counter-reset:s;}
+  .wmbox li{position:relative;counter-increment:s;padding:0 0 14px 38px;color:#eef2f9;font-size:14px;line-height:1.45;}
+  .wmbox li:last-child{padding-bottom:0;}
+  .wmbox li:before{content:counter(s);position:absolute;left:0;top:-1px;width:26px;height:26px;background:#7B4ADB;color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;}
+  .wmbox li b{color:#fff;}
+  .wmbox li .path{display:inline-block;background:#0e1014;border:1px solid #2a2d34;border-radius:5px;padding:2px 7px;font-size:12px;color:#cfd4da;margin-top:4px;font-variant-numeric:tabular-nums;}
+  .wmbtn{width:100%;padding:13px 0;border-radius:10px;background:#7B4ADB;color:#fff;border:none;font-size:15px;font-weight:800;letter-spacing:.02em;cursor:pointer;margin-top:18px;}
+  .wmbtn:active{background:#6a3fc4;}
 </style>
 </head>
 <body>
@@ -97,6 +116,21 @@
         <button class="cbtn cancel" id="confirmCancel">Cancel</button>
         <button class="cbtn ok" id="confirmOk">Remove</button>
       </div>
+    </div>
+  </div>
+
+  <video id="nosleep" muted playsinline loop preload="auto" disablepictureinpicture></video>
+
+  <div class="wm" id="wallModal">
+    <div class="wmbox">
+      <h2><span class="mk">$</span>Wall Mode</h2>
+      <p class="sub">Turn this iPad into an always-on ticker display that never sleeps.</p>
+      <ol>
+        <li><b>Keep it plugged into power.</b> A 24/7 wall display should always be charging.</li>
+        <li><b>Stop the screen from locking.</b><br><span class="path">Settings &rsaquo; Display &amp; Brightness &rsaquo; Auto-Lock &rsaquo; Never</span></li>
+        <li><b>Add Tickers to your Home Screen</b> for a clean full-screen look.<br><span class="path">Share &uarr; &rsaquo; Add to Home Screen</span></li>
+      </ol>
+      <button class="wmbtn" id="wallOk">Got it &mdash; go live</button>
     </div>
   </div>
 
@@ -117,6 +151,7 @@
     <div class="r">
       <span id="clock">--:--:--</span>
       <button class="ebtn" onclick="location.href=location.pathname+'?t='+Date.now()" title="Refresh">↻</button>
+      <button class="ebtn" id="wallBtn" onclick="showWall()" title="Wall Mode setup">⛶ Wall</button>
       <button class="ebtn" id="editBtn" onclick="toggleEdit()">✎ Edit</button>
     </div>
   </div>
@@ -427,6 +462,46 @@ window.addEventListener("resize",layout);
 window.addEventListener("orientationchange",()=>setTimeout(layout,300));
 window.addEventListener("load",()=>{ layout(); setTimeout(layout,250); });
 setTimeout(layout,150); setTimeout(layout,700);
+
+/* ---- KEEP SCREEN AWAKE — 24/7 wall display -----------------------------------
+   Layer 1: Screen Wake Lock API (iPadOS 16.4+, Chrome, Android). iOS drops the lock
+            whenever the tab hides, so we re-acquire on visibility / focus / any tap
+            (the tap also satisfies iOS's user-gesture requirement).
+   Layer 2: a silent looping <video> (the classic "NoSleep" trick) for OLDER iPads
+            where the Wake Lock API doesn't exist. iOS needs a user gesture to start
+            playback, so it kicks off on the first tap.
+   Layer 3 (bulletproof, ANY iPad incl. ancient): the one-time Wall Mode card tells
+            the user to set Auto-Lock -> Never + stay on power. No web API can override
+            that on old hardware, so this is the only true guarantee on old devices. */
+let _wakeLock=null;
+const _hasWakeLock=('wakeLock' in navigator);
+async function acquireWake(){
+  try{
+    if(_hasWakeLock && document.visibilityState==='visible' && !_wakeLock){
+      _wakeLock=await navigator.wakeLock.request('screen');
+      _wakeLock.addEventListener('release',()=>{ _wakeLock=null; });
+    }
+  }catch(e){ /* may need a user gesture; the pointerdown handler below retries */ }
+}
+const _nosleepVid=document.getElementById('nosleep');
+if(_nosleepVid){ _nosleepVid.src="data:video/mp4;base64,AAAAIGZ0eXBpc29tAAACAGlzb21pc28yYXZjMW1wNDEAAAM4bW9vdgAAAGxtdmhkAAAAAAAAAAAAAAAAAAAD6AAAA+gAAQAAAQAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAmJ0cmFrAAAAXHRraGQAAAADAAAAAAAAAAAAAAABAAAAAAAAA+gAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAAEAAAABAAAAAAAAkZWR0cwAAABxlbHN0AAAAAAAAAAEAAAPoAAAAAAABAAAAAAHabWRpYQAAACBtZGhkAAAAAAAAAAAAAAAAAAAoAAAAKABVxAAAAAAALWhkbHIAAAAAAAAAAHZpZGUAAAAAAAAAAAAAAABWaWRlb0hhbmRsZXIAAAABhW1pbmYAAAAUdm1oZAAAAAEAAAAAAAAAAAAAACRkaW5mAAAAHGRyZWYAAAAAAAAAAQAAAAx1cmwgAAAAAQAAAUVzdGJsAAAAuXN0c2QAAAAAAAAAAQAAAKlhdmMxAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAEAAQABIAAAASAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGP//AAAAL2F2Y0MBQsAe/+EAF2dCwB7ZBCbARAAAAwAEAAADACg8WLkgAQAFaMuDyyAAAAAQcGFzcAAAAAEAAAABAAAAFGJ0cnQAAAAAAAAVwAAAFcAAAAAYc3R0cwAAAAAAAAABAAAABQAACAAAAAAUc3RzcwAAAAAAAAABAAAAAQAAABxzdHNjAAAAAAAAAAEAAAABAAAABQAAAAEAAAAoc3RzegAAAAAAAAAAAAAABQAAAo8AAAAKAAAACwAAAAoAAAAKAAAAFHN0Y28AAAAAAAAAAQAAA2gAAABidWR0YQAAAFptZXRhAAAAAAAAACFoZGxyAAAAAAAAAABtZGlyYXBwbAAAAAAAAAAAAAAAAC1pbHN0AAAAJal0b28AAAAdZGF0YQAAAAEAAAAATGF2ZjU4Ljc2LjEwMAAAAAhmcmVlAAACwG1kYXQAAAJwBgX//2zcRem95tlIt5Ys2CDZI+7veDI2NCAtIGNvcmUgMTYzIHIzMDYwIDVkYjZhYTYgLSBILjI2NC9NUEVHLTQgQVZDIGNvZGVjIC0gQ29weWxlZnQgMjAwMy0yMDIxIC0gaHR0cDovL3d3dy52aWRlb2xhbi5vcmcveDI2NC5odG1sIC0gb3B0aW9uczogY2FiYWM9MCByZWY9MyBkZWJsb2NrPTE6MDowIGFuYWx5c2U9MHgxOjB4MTExIG1lPWhleCBzdWJtZT03IHBzeT0xIHBzeV9yZD0xLjAwOjAuMDAgbWl4ZWRfcmVmPTEgbWVfcmFuZ2U9MTYgY2hyb21hX21lPTEgdHJlbGxpcz0xIDh4OGRjdD0wIGNxbT0wIGRlYWR6b25lPTIxLDExIGZhc3RfcHNraXA9MSBjaHJvbWFfcXBfb2Zmc2V0PS0yIHRocmVhZHM9MiBsb29rYWhlYWRfdGhyZWFkcz0xIHNsaWNlZF90aHJlYWRzPTAgbnI9MCBkZWNpbWF0ZT0xIGludGVybGFjZWQ9MCBibHVyYXlfY29tcGF0PTAgY29uc3RyYWluZWRfaW50cmE9MCBiZnJhbWVzPTAgd2VpZ2h0cD0wIGtleWludD0yNTAga2V5aW50X21pbj01IHNjZW5lY3V0PTQwIGludHJhX3JlZnJlc2g9MCByY19sb29rYWhlYWQ9NDAgcmM9Y3JmIG1idHJlZT0xIGNyZj0yMy4wIHFjb21wPTAuNjAgcXBtaW49MCBxcG1heD02OSBxcHN0ZXA9NCBpcF9yYXRpbz0xLjQwIGFxPTE6MS4wMACAAAAAF2WIhAR8mKAANiMnJyddddddddddddeAAAAABkGaOAj4RgAAAAdBmlQCPhGAAAAABkGaYBDwjAAAAAZBmoA/wjAAAAAGQZqAP8IwA=="; }
+function startFallbackVideo(){
+  if(_hasWakeLock || !_nosleepVid) return; // only needed where Wake Lock is unavailable
+  const p=_nosleepVid.play(); if(p&&p.catch) p.catch(()=>{});
+}
+function keepAwake(){ acquireWake(); startFallbackVideo(); }
+document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible') keepAwake(); });
+window.addEventListener('focus',keepAwake);
+document.addEventListener('pointerdown',keepAwake); // re-acquire after any tap / if the OS released it
+keepAwake();
+
+/* ---- Wall Mode setup card (shown once per device) ---- */
+const WM_KEY="beitouBoard.wallSeen.v1";
+function showWall(){ document.getElementById('wallModal').classList.add('show'); }
+function hideWall(){ document.getElementById('wallModal').classList.remove('show'); try{localStorage.setItem(WM_KEY,"1");}catch(e){} keepAwake(); }
+document.getElementById('wallOk').addEventListener('click',hideWall);
+document.getElementById('wallModal').addEventListener('click',(e)=>{ if(e.target.id==='wallModal') hideWall(); });
+try{ if(!localStorage.getItem(WM_KEY)) setTimeout(showWall,600); }catch(e){}
 </script>
 </body>
 </html>
